@@ -1,0 +1,5 @@
+---
+postgresql_docker_image: sameersbn/postgresql:10
+redis_docker_image: sameersbn/redis:4.0.9-1
+gitlab_docker_image: sameersbn/gitlab:11.11.2
+gitlab_host: gitlab.integr8.me

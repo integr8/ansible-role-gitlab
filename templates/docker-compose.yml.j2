@@ -1,0 +1,92 @@
+version: '3.7'
+services:
+
+  redis:
+    image: {{ redis_docker_image }}
+    networks:
+      - integr8
+    command:
+    - --loglevel warning
+    volumes:
+    - gitlab_redis:/var/lib/redis
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == worker
+
+  postgresql:
+    image: {{ postgresql_docker_image }}
+    networks:
+      - integr8
+    volumes:
+    - gitlab_postgresql:/var/lib/postgresql:Z
+    environment:
+    - DB_USER=gitlab
+    - DB_PASS=password
+    - DB_NAME=gitlabhq_production
+    - DB_EXTENSION=pg_trgm
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == worker
+
+  gitlab:
+    image: {{ gitlab_docker_image }}
+    networks:
+      - integr8
+    logging:
+      driver: gelf
+      options:
+        gelf-address: "udp://192.168.56.102:12201"
+        tag: gitlab
+    depends_on:
+    - redis
+    - postgresql
+    ports:
+    - 80
+    - 443
+    - 22:22
+    volumes:
+    - gitlab_gitlab:/home/git/data
+    deploy:
+      replicas: 1
+      labels:
+      - traefik.enable=true
+      - traefik.backend=gitlab
+      - traefik.frontend.rule=Host:{{ gitlab_host }}
+      - traefik.port=80
+      - traefik.docker.network=integr8
+      - traefik.backend.healthcheck.path=/users/sign_in
+      placement:
+        constraints:
+          - node.role == worker
+    environment:
+    - DEBUG=false
+    - DB_ADAPTER=postgresql
+    - DB_HOST=postgresql
+    - DB_PORT=5432
+    - DB_USER=gitlab
+    - DB_PASS=password
+    - DB_NAME=gitlabhq_production
+
+    - REDIS_HOST=redis
+    - REDIS_PORT=6379
+
+    - GITLAB_SECRETS_DB_KEY_BASE=long-and-random-alphanumeric-string
+    - GITLAB_SECRETS_SECRET_KEY_BASE=long-and-random-alphanumeric-string
+    - GITLAB_SECRETS_OTP_KEY_BASE=long-and-random-alphanumeric-string
+
+networks:
+  integr8:
+    external: true
+    name: integr8
+
+volumes:
+  gitlab_redis:
+    driver: local
+  gitlab_postgresql:
+    driver: local
+  gitlab_gitlab:
+    driver: local
